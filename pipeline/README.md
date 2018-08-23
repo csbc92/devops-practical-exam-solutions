@@ -40,7 +40,7 @@ password: admin
 * Used port 80 by accident where Jenkins occupied the port..
 * python interpreter version in the docker image, made the app.py unable to execute
 * We have discussed whether or not to have the whole python application to be **a part of** the docker image, or if we should **volume in** the application (REF-1). The difference is, respectively, if the applications-files should be available at **build-time** or at **run-time**. For the unit-tests it was decided to volume into a base-image with python requirements, because this eliminates the need to build a new docker-image each time a developer commits a change. This allows a faster feedback loop. When the application needs to be testet at staging/production environment, it is desireble to actually make the application-files a part of the image, because this is the image that should be shipable upon release.
-* We had a small pibeline up and running relatively easy. The hard part was to get the whole pipeline up and running from commit -> deploy into production. There was minimal changes all the time to the Jenkinsfile.
+* We had a small pipeline up and running relatively easy. The hard part was to get the whole pipeline up and running from commit -> deploy into production. There was minimal changes all the time to the Jenkinsfile.
 
 ### Refs:
 
