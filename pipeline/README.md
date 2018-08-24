@@ -47,7 +47,7 @@ password: admin
 (REF-1) https://stackoverflow.com/questions/24958140/what-is-the-difference-between-the-copy-and-add-commands-in-a-dockerfile
 
 ### Pipeline description
-We have built a Jenkinsfile with a groovy-script that carries out all the stages made. The stages are described roughly below:
+We have built a `Jenkinsfile` with a groovy-script that carries out all the stages made. The stages are described roughly below:
 
 * Preparation - Looks for branches matching the pattern \*\*/ready/\*\* and if so, the build server pulls the branch into the working direction.
 * Unit-Tests - Pulls the latest base docker image with the required environment in order to run the tests. Then it starts a docker container and runs the tests.py script. 
@@ -55,6 +55,57 @@ We have built a Jenkinsfile with a groovy-script that carries out all the stages
 * Deploy-test - Pulls the latest base docker image and then volumes the whole application into the container in order to start the web-server. We make a smoke-test by running curl on the URL where the web-server is hosted.
 * Publish image - This is running a custom made deployment-script that builds the whole application into a new image so it is available at runtime. Then the script pushes the image to be available on https://hub.docker.com/r/vedsted/codechan/ .
 
-Some of the stages are run of different nodes, where publish image has elevated priveleges.
+Some of the stages are run of different nodes (for educational purposes), where publish-image stage has elevated priveleges in order to be able to push the image to docker hub.
 
+The complete `Jenkinsfile` is shown below:
 
+```groovy
+node('non_privileged') {
+
+    stage('Preparation') { // for display purposes
+        // Get some code from a GitHub repository
+        checkout([$class: 'GitSCM', branches: [[name: '**/ready/**']], 
+        doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'CleanBeforeCheckout'], 
+        pretestedIntegration(gitIntegrationStrategy: accumulated(), integrationBranch: 'master', 
+        repoName: 'origin')], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'thevinge', 
+        url: 'git@github.com:Vedsted/ca-project.git']]])
+    
+    }
+    
+    stage('Unit-Tests') {
+        // Run the tests
+        if (isUnix()) {
+         sh 'docker pull vedsted/codechan:latest-base'
+         sh 'docker run -i --rm --name codechan_Test_Script -v $PWD:/usr/src/codechan -w /usr/src/codechan vedsted/codechan:latest-base python tests.py'
+
+        }
+    }
+    stage('Push-VC'){
+        pretestedIntegrationPublisher()
+        stash name: "repo", includes: "**", useDefaultExcludes: false
+        deleteDir()
+    }
+
+}
+
+node('deployment_test'){
+    stage('Deploy -test'){
+        unstash 'repo'
+        sh 'docker pull vedsted/codechan:latest-base'
+        sh 'docker run -d --rm --name codechan_Test_Script -v $PWD:/usr/src/codechan -w /usr/src/codechan -p 5000:5000 vedsted/codechan:latest-base python run.py'
+        sh 'sleep 8s'
+        sh 'curl 127.0.0.1:5000'
+        sh 'docker stop codechan_Test_Script'
+        stash name: "repo_2", includes: "**", useDefaultExcludes: false
+        deleteDir()
+    }
+}
+
+node('privileged'){
+	stage('Publish image'){
+		unstash 'repo_2'
+        sh 'cd deployment && ./deploy_image.sh'
+        deleteDir()
+    } 
+}
+```
